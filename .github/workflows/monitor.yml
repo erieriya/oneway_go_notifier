@@ -2,8 +2,11 @@ name: monitor
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: "*/5 * * * *"
+  # Add a schedule trigger once you've configured your own Secrets/Variables
+  # (see README) — left out here so this template repo doesn't run/fail on
+  # its own with no webhook configured.
+  # schedule:
+  #   - cron: "*/5 * * * *"
 
 permissions:
   contents: write

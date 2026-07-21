@@ -72,6 +72,17 @@ tests/               pytest（fixtureは実際のHTML構造を元にしたもの
 
 `Actions` タブ → `monitor` ワークフロー → `Run workflow` で手動実行できます。
 
+### 6. 定期実行を有効にする
+
+`.github/workflows/monitor.yml`の`schedule`はコメントアウトしてあります（Secrets未設定のまま自動実行されて失敗し続けるのを防ぐためです）。1〜5の設定が終わって手動実行が問題なく動くことを確認したら、コメントを外して`schedule`を有効にしてください。
+
+```yaml
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "*/5 * * * *"
+```
+
 ## NOTIFY_TARGETS（複数スレッド・条件別通知）
 
 `filters`は `出発店舗の部分一致条件:返却店舗の部分一致条件` の形式で、`,`区切りで複数ルール、各辺は`|`区切りでOR条件を書けます。店舗名は運営会社名（例:「トヨタレンタリース大阪」）の部分一致で判定します。
