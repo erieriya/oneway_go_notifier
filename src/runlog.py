@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 DEFAULT_LOG_PATH = Path(__file__).resolve().parent.parent / "data" / "run_log.jsonl"
+NOTIFY_FAILURES_PATH = Path(__file__).resolve().parent.parent / "data" / "notify_failures.jsonl"
 DEFAULT_MAX_ENTRIES = 2000
 
 

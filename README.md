@@ -7,13 +7,14 @@
 
 ## できること
 
-- 5分間隔（cron設定上。実際の発火間隔はGitHub Actionsの仕様上おおむね1時間に1回程度になります）でページを取得
+- ページを定期的に取得（頻度の話は下記「定期実行」参照）
 - 前回取得時との差分から新着掲載のみを検知（重複通知しない）
 - 受付終了（サイト側のCSSオーバーレイ表示。DOM上にテキストは存在しない）の掲載は通知しない
 - Discord Webhookへ通知（スレッド指定も可能）
 - 出発店舗・返却店舗名の部分一致条件で、スレッドごとに異なる絞り込み設定が可能（例:「関東→関西」「関西→関東」）
-- 絞り込み条件に一致した掲載について、初出・最終確認・掲載終了日時などの履歴を`data/route_history.json`に保存
+- 検知できた掲載すべてについて、初出・最終確認・掲載終了日時・最後に見た時点の受付状況を`data/route_history.json`に保存（後から予約戦略を立てる際の参考データとして使える）
 - 実行のたびに取得件数・新着件数・エラー内容などを`data/run_log.jsonl`に記録
+- 通知に失敗した場合、どの掲載・どのスレッド宛てが失敗したかを`data/notify_failures.jsonl`に記録
 
 ## 構成
 
@@ -30,7 +31,7 @@ src/
   targets.py         スレッドごとの通知設定(NOTIFY_TARGETS)
   notifier.py         Discord Webhook送信
   history.py          data/route_history.json（掲載履歴）
-  runlog.py           data/run_log.jsonl（実行ログ）
+  runlog.py           data/run_log.jsonl（実行ログ）・data/notify_failures.jsonl（通知失敗ログ）
 tests/               pytest（fixtureは実際のHTML構造を元にしたもの）
 .github/workflows/monitor.yml   GitHub Actionsでの定期実行
 ```
@@ -74,7 +75,31 @@ tests/               pytest（fixtureは実際のHTML構造を元にしたもの
 
 ### 6. 定期実行を有効にする
 
-`.github/workflows/monitor.yml`の`schedule`はコメントアウトしてあります（Secrets未設定のまま自動実行されて失敗し続けるのを防ぐためです）。1〜5の設定が終わって手動実行が問題なく動くことを確認したら、コメントを外して`schedule`を有効にしてください。
+1〜5の設定が終わって手動実行が問題なく動くことを確認したら、定期実行を有効にします。2つの方法があります。
+
+**方法A: 外部cronサービスから`workflow_dispatch`を叩く（推奨）**
+
+GitHub Actionsの`schedule`イベントは「ベストエフォート」で、頻繁な間隔（5分毎など）を指定しても実際にはシステム負荷により1時間に1回程度まで間引かれることがあります。そこで、外部の無料cronサービス（例: [cron-job.org](https://cron-job.org)）から確実に`workflow_dispatch`を呼び出す方式にすると安定します。
+
+1. GitHubの `Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token`
+   - `Repository access`: このリポジトリのみを選択
+   - `Permissions → Actions`: **Read and write**
+   - 発行してトークンをコピー（この画面を閉じると二度と見られません）
+2. cron-job.orgで新しいcronジョブを作成
+   - URL: `https://api.github.com/repos/<あなたのユーザー名>/<リポジトリ名>/actions/workflows/monitor.yml/dispatches`
+   - Method: `POST`
+   - Headers:
+     - `Authorization: Bearer <発行したトークン>`（`Bearer `のスペースを忘れずに。無いと401 Unauthorizedになります）
+     - `Accept: application/vnd.github+json`
+     - `Content-Type: application/json`
+   - Body: `{"ref":"main"}`
+   - Schedule: 好きな間隔（5分など）
+
+このトークンは「Actionsの実行をトリガーできる」権限だけなので、コードを書き換えられる心配はありません。ただし外部サービスに渡す値なので、スクリーンショットなどで人に見せないよう注意してください。
+
+**方法B: GitHub内蔵の`schedule`を使う（簡単だが不安定）**
+
+`.github/workflows/monitor.yml`のコメントアウトを外すだけです。設定は簡単ですが、上記の理由で実際の発火間隔は当てになりません。
 
 ```yaml
 on:
@@ -106,7 +131,8 @@ on:
 
 ## 既知の制限
 
-- GitHub Actionsの`schedule`イベントは「ベストエフォート」で、頻繁な間隔（5分毎など）を指定しても実際にはシステム負荷により1時間に1回程度まで間引かれることがあります。リアルタイム性が必要な場合は、外部のcronサービス（例: cron-job.org）からGitHub APIの`workflow_dispatch`を呼び出す構成に切り替えることを検討してください
+- GitHub Actionsの`schedule`イベントの間引きについては上記「定期実行を有効にする」参照
+- あるチェックと次のチェックの間に掲載されて消えてしまった募集は、原理的に検知できません（チェック間隔に依存する限界です）
 - サイトのHTML構造（クラス名等）が変更されると`src/parser.py`の修正が必要になります
 
 ## ライセンス

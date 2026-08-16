@@ -11,7 +11,7 @@ from src.filters import matches
 from src.history import load_history, save_history, update_history
 from src.notifier import send_new_listing
 from src.parser import parse_listings
-from src.runlog import append_entry
+from src.runlog import NOTIFY_FAILURES_PATH, append_entry
 from src.scraper import fetch_html
 from src.state import listings_to_state_dict, load_state, save_state
 from src.targets import parse_targets
@@ -86,23 +86,37 @@ def main() -> int:
                         has_filter=bool(target.filters),
                     )
                     notified += 1
-                except Exception:
+                except Exception as exc:
                     logger.exception(
                         "Discord通知に失敗しました: listing=%s target=%s", listing_id, target.name
                     )
                     notify_errors += 1
+                    append_entry(
+                        {
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "listing_id": listing_id,
+                            "target": target.name,
+                            "thread_id": target.thread_id,
+                            "start_shop": listing.start_shop,
+                            "return_shop": listing.return_shop,
+                            "car_name": listing.car_name,
+                            "date_range": listing.date_range,
+                            "error": str(exc),
+                        },
+                        path=NOTIFY_FAILURES_PATH,
+                    )
 
     state["initialized"] = True
     state["listings"] = listings_to_state_dict(current_listings)
     save_state(state)
 
+    # Every currently observed listing gets a history record (not just ones
+    # matching a route filter) so past listings can inform booking strategy
+    # later. matched_targets is still recorded as useful metadata.
     filtered_targets = [t for t in targets if t.filters]
     history_matches = {
-        listing_id: matched_names
+        listing_id: [t.name for t in filtered_targets if matches(listing, t.filters)]
         for listing_id, listing in current_by_id.items()
-        if (
-            matched_names := [t.name for t in filtered_targets if matches(listing, t.filters)]
-        )
     }
     history = load_history()
     update_history(history, current_by_id, history_matches, run_started_at)

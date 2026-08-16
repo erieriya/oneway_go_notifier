@@ -2,7 +2,7 @@ from src.history import update_history
 from src.models import Listing
 
 
-def make_listing(start_shop="トヨタレンタリース東京", return_shop="トヨタレンタリース大阪"):
+def make_listing(start_shop="トヨタレンタリース東京", return_shop="トヨタレンタリース大阪", accepting=True):
     return Listing(
         start_shop=start_shop,
         start_area="東京都",
@@ -14,6 +14,7 @@ def make_listing(start_shop="トヨタレンタリース東京", return_shop="�
         condition="禁煙",
         reserve_shop="新宿店",
         reserve_tel="03-0000-0000",
+        accepting=accepting,
     )
 
 
@@ -75,3 +76,25 @@ def test_matched_targets_accumulate_across_runs():
     history = update_history(history, current_by_id, {listing.id: ["関西→関東"]}, "t2")
 
     assert set(history[listing.id]["matched_targets"]) == {"関東→関西", "関西→関東"}
+
+
+def test_listing_with_no_matching_target_is_still_recorded():
+    listing = make_listing(start_shop="トヨタレンタリース福岡", return_shop="トヨタレンタリース長崎")
+    current_by_id = {listing.id: listing}
+    history = update_history({}, current_by_id, {listing.id: []}, "t1")
+
+    record = history[listing.id]
+    assert record["first_seen"] == "t1"
+    assert record["matched_targets"] == []
+
+
+def test_last_accepting_reflects_latest_observation():
+    listing = make_listing(accepting=True)
+    current_by_id = {listing.id: listing}
+    history = update_history({}, current_by_id, {listing.id: []}, "t1")
+    assert history[listing.id]["last_accepting"] is True
+
+    sold_out_listing = make_listing(accepting=False)
+    current_by_id = {sold_out_listing.id: sold_out_listing}
+    history = update_history(history, current_by_id, {sold_out_listing.id: []}, "t2")
+    assert history[sold_out_listing.id]["last_accepting"] is False

@@ -1,5 +1,6 @@
-"""Lifecycle history for listings matching a named route filter (e.g. a
-関東→関西 thread), independent of state.json (which only reflects "now").
+"""Lifecycle history for every listing observed, independent of state.json
+(which only reflects "now"). Used to build a track record of what actually
+gets listed (routes, dates, how long they last) for planning real bookings.
 
 Tracks, per listing id: when it was first seen, when it was last seen still
 live, and when it disappeared (ended_at), plus the listing's own details
@@ -37,8 +38,9 @@ def update_history(
     """Update history in place (also returned) for this run's observations.
 
     matched_target_names maps listing id -> list of route-filter target
-    names it currently matches (only listings matching at least one named,
-    non-empty filter should be included).
+    names it currently matches (may be an empty list if it matches none;
+    callers that want every observed listing recorded should include all
+    current listing ids as keys, regardless of whether any filter matches).
     """
     for listing_id, target_names in matched_target_names.items():
         listing = current_by_id[listing_id]
@@ -56,10 +58,12 @@ def update_history(
                 "matched_targets": sorted(target_names),
                 "first_seen": run_timestamp,
                 "last_seen": run_timestamp,
+                "last_accepting": listing.accepting,
                 "ended_at": None,
             }
         else:
             record["last_seen"] = run_timestamp
+            record["last_accepting"] = listing.accepting
             record["ended_at"] = None
             record["matched_targets"] = sorted(set(record["matched_targets"]) | set(target_names))
 
